@@ -1,6 +1,7 @@
 import numpy as np
 import math
 
+
 def adaption_quant_table(quality, table):
     if quality < 50:
         S = 5000 / quality

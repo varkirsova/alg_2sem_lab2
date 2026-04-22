@@ -1,12 +1,11 @@
 import numpy as np
 from PIL import Image
 
-from task2 import rgb_ycbcr
+from task2 import rgb_ycbcr, ycbcr_rgb
 from task2_2 import zigzag
 from task2_4 import coding_varible_length_ac
 from task2_5 import encode_dc_huffman, encode_ac_huffman
 from task2_6 import adaption_quant_table
-from task3 import downsample, upsampling
 from task4 import quant, blocks8, dct_reverse_matr, dct_matr
 
 huffmann_ac = {
@@ -341,7 +340,6 @@ def encode_channel(channel, q):
 
 
 def encode_image(img, quality, q_base, filename):
-
     if img.ndim == 2:
         unique_vals = np.unique(img)
         if len(unique_vals) <= 2:
@@ -352,7 +350,6 @@ def encode_image(img, quality, q_base, filename):
         mode = b'C'
 
     if mode in [b'G', b'B']:
-
         Y = img
 
         qY = adaption_quant_table(quality, q_base)
@@ -363,41 +360,37 @@ def encode_image(img, quality, q_base, filename):
             mode,
             Y.shape[1], Y.shape[0],
             qY, blocksY,
-            np.zeros((8,8)), [],
-            np.zeros((8,8)), [],
+            np.zeros((8,8), dtype=np.int32), [],
+            np.zeros((8,8), dtype=np.int32), [],
             (0,0), (0,0)
         )
-
         return
+    ycbcr = rgb_ycbcr(img)
 
-    if mode == b'C':
+    Y = ycbcr[:, :, 0]
+    Cb = ycbcr[:, :, 1]
+    Cr = ycbcr[:, :, 2]
 
-        ycbcr = rgb_ycbcr(img)
+    Cb_full = Cb
+    Cr_full = Cr
 
-        Y = ycbcr[:, :, 0]
-        Cb = ycbcr[:, :, 1]
-        Cr = ycbcr[:, :, 2]
+    qY = adaption_quant_table(quality, q_base)
+    qCb = qY
+    qCr = qY
 
-        Cb_ds = downsample(Cb)
-        Cr_ds = downsample(Cr)
+    blocksY = encode_channel(Y, qY)
+    blocksCb = encode_channel(Cb_full, qCb)
+    blocksCr = encode_channel(Cr_full, qCr)
 
-        qY = adaption_quant_table(quality, q_base)
-        qCb = qY
-        qCr = qY
-
-        blocksY = encode_channel(Y, qY)
-        blocksCb = encode_channel(Cb_ds, qCb)
-        blocksCr = encode_channel(Cr_ds, qCr)
-
-        write_compressed_binary(
-            filename,
-            mode,
-            Y.shape[1], Y.shape[0],
-            qY, blocksY,
-            qCb, blocksCb,
-            qCr, blocksCr,
-            Cb_ds.shape, Cr_ds.shape
-        )
+    write_compressed_binary(
+        filename,
+        mode,
+        Y.shape[1], Y.shape[0],
+        qY, blocksY,
+        qCb, blocksCb,
+        qCr, blocksCr,
+        Cb_full.shape, Cr_full.shape
+    )
 
 
 def build_reverse_dc(huff):
@@ -561,6 +554,7 @@ def decode_image(filename):
     rev_dc = build_reverse_dc(huffmann_dc)
     rev_ac = build_reverse_ac(huffmann_ac)
     rev_ac_sorted = sorted(rev_ac.items(), key=lambda x: len(x[0]))
+
     if mode == b'G':
         Y = decode_blocks(blocksY, qY, height, width, rev_dc, rev_ac_sorted)
         return Y
@@ -568,20 +562,16 @@ def decode_image(filename):
     elif mode == b'B':
         Y = decode_blocks(blocksY, qY, height, width, rev_dc, rev_ac_sorted)
         Y = (Y > 127).astype(np.uint8)
-
         return Y
 
     else:
         Y = decode_blocks(blocksY, qY, height, width, rev_dc, rev_ac_sorted)
-
-        Cb_small = decode_blocks(blocksCb, qCb, cb_h, cb_w, rev_dc, rev_ac_sorted)
-        Cr_small = decode_blocks(blocksCr, qCr, cr_h, cr_w, rev_dc, rev_ac_sorted)
-
-        Cb = upsampling(Cb_small, 2)
-        Cr = upsampling(Cr_small, 2)
+        Cb = decode_blocks(blocksCb, qCb, cb_h, cb_w, rev_dc, rev_ac_sorted)
+        Cr = decode_blocks(blocksCr, qCr, cr_h, cr_w, rev_dc, rev_ac_sorted)
 
         ycbcr = np.stack([Y, Cb, Cr], axis=2)
-        return rgb_ycbcr(ycbcr, inverse=True)
+        return ycbcr_rgb(ycbcr)
+
 
 
 
@@ -596,24 +586,24 @@ def test_real_image(path):
         img = np.array(img_pil.convert("RGB"))
 
     q = np.array([
-        [16,11,10,16,24,40,51,61],
-        [12,12,14,19,26,58,60,55],
-        [14,13,16,24,40,57,69,56],
-        [14,17,22,29,51,87,80,62],
-        [18,22,37,56,68,109,103,77],
-        [24,35,55,64,81,104,113,92],
-        [49,64,78,87,103,121,120,101],
-        [72,92,95,98,112,100,103,99]
+        [16, 11, 10, 16, 24, 40, 51, 61],
+        [12, 12, 14, 19, 26, 58, 60, 55],
+        [14, 13, 16, 24, 40, 57, 69, 56],
+        [14, 17, 22, 29, 51, 87, 80, 62],
+        [18, 22, 37, 56, 68, 109, 103, 77],
+        [24, 35, 55, 64, 81, 104, 113, 92],
+        [49, 64, 78, 87, 103, 121, 120, 101],
+        [72, 92, 95, 98, 112, 100, 103, 99]
     ])
 
-    encode_image(img, 50, q, "compressed_data.mjpg")
-    img_rec = decode_image("compressed_data.mjpg")
+    encode_image(img, 90, q, "compressed_data.bin")
+    img_rec = decode_image("compressed_data.bin")
     if img_rec.ndim == 2 and np.max(img_rec) <= 1:
         Image.fromarray(img_rec * 255).convert("1").save("decoded.png")
     else:
         Image.fromarray(img_rec).save("decoded.png")
 
-test_real_image("test_files/image_gray.png")
+test_real_image("gray.png")
 
 
 

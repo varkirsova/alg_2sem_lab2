@@ -33,11 +33,11 @@ def save_raw(img: Image.Image, filename: str, colorspace: int=0):
         f.write(struct.pack("I", h))
         f.write(data)
 
-img = Image.open("test_files/image_gray.png")
-save_raw(img, "test_files/image_gray.raw")
-
-def size(path):
-    return os.path.getsize(path)
+# img = Image.open("test_files/image_gray.png")
+# save_raw(img, "test_files/image_gray.raw")
+#
+# def size(path):
+#     return os.path.getsize(path)
 
 # raw = "test_files/image_gray.raw"
 # orig = "test_files/image_gray.png"
@@ -51,3 +51,20 @@ def size(path):
 # with open("lena_ycbcr.raw", "rb") as f:
 #     header = f.read(10)
 #     print(list(header))
+
+
+from PIL import Image
+
+img = Image.open("test_files/colour.png")
+
+# 8-битный grayscale
+gray = img.convert("L")
+gray.save("gray.png")
+
+# 1-битное BW (пороговое)
+bw = gray.point(lambda x: 255 if x > 127 else 0).convert("1")
+bw.save("bw.png")
+
+# 1-битное BW с дизерингом
+bw_dither = gray.convert("1")  # по умолчанию Floyd–Steinberg
+bw_dither.save("bw_dither.png")

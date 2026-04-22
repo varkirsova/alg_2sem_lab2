@@ -7,7 +7,7 @@ from task2_7 import encode_image
 def experiment_size_vs_quality(image_path, q_base, out_prefix="test"):
     img = np.array(Image.open(image_path).convert("L"))
 
-    qualities = list(range(10, 91, 10))
+    qualities = list(range(10, 99, 10))
     sizes = []
 
     for q_value in qualities:
@@ -42,4 +42,4 @@ q = np.array([
 ])
 
 
-experiment_size_vs_quality("test_files/image_bw_dither.png", q)
+experiment_size_vs_quality("bw.png", q)
