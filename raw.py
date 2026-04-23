@@ -55,7 +55,7 @@ def save_raw(img: Image.Image, filename: str, colorspace: int=0):
 
 from PIL import Image
 
-img = Image.open("test_files/colour.png")
+img = Image.open("colour.png")
 
 # 8-битный grayscale
 gray = img.convert("L")

@@ -211,20 +211,12 @@ def write_compressed_binary(
     qY, blocksY,
     qCb, blocksCb,
     qCr, blocksCr,
-    cb_shape,
-    cr_shape
 ):
     buffer = bytearray()
     buffer.extend(mode)
     buffer.extend(width.to_bytes(4, "big"))
     buffer.extend(height.to_bytes(4, "big"))
-    cb_h, cb_w = cb_shape
-    cr_h, cr_w = cr_shape
 
-    buffer.extend(cb_w.to_bytes(4, "big"))
-    buffer.extend(cb_h.to_bytes(4, "big"))
-    buffer.extend(cr_w.to_bytes(4, "big"))
-    buffer.extend(cr_h.to_bytes(4, "big"))
 
     for v in qY.flatten():
         buffer.extend(int(v).to_bytes(2, "big"))
@@ -264,11 +256,6 @@ def read_compressed_binary(filename: str):
         width = int.from_bytes(f.read(4), "big")
         height = int.from_bytes(f.read(4), "big")
 
-        cb_w = int.from_bytes(f.read(4), "big")
-        cb_h = int.from_bytes(f.read(4), "big")
-
-        cr_w = int.from_bytes(f.read(4), "big")
-        cr_h = int.from_bytes(f.read(4), "big")
 
         qY  = np.array([int.from_bytes(f.read(2), "big") for _ in range(64)]).reshape(8, 8)
         qCb = np.array([int.from_bytes(f.read(2), "big") for _ in range(64)]).reshape(8, 8)
@@ -309,8 +296,6 @@ def read_compressed_binary(filename: str):
             qY, blocksY,
             qCb, blocksCb,
             qCr, blocksCr,
-            (cb_h, cb_w),
-            (cr_h, cr_w)
         )
 
 
@@ -361,8 +346,7 @@ def encode_image(img, quality, q_base, filename):
             Y.shape[1], Y.shape[0],
             qY, blocksY,
             np.zeros((8,8), dtype=np.int32), [],
-            np.zeros((8,8), dtype=np.int32), [],
-            (0,0), (0,0)
+            np.zeros((8,8), dtype=np.int32), []
         )
         return
     ycbcr = rgb_ycbcr(img)
@@ -388,8 +372,7 @@ def encode_image(img, quality, q_base, filename):
         Y.shape[1], Y.shape[0],
         qY, blocksY,
         qCb, blocksCb,
-        qCr, blocksCr,
-        Cb_full.shape, Cr_full.shape
+        qCr, blocksCr
     )
 
 
@@ -524,10 +507,10 @@ def decode_blocks(blocks, qY, height, width, rev_dc, rev_ac_sorted):
 
     for y in range(0, H, 8):
         for x in range(0, W, 8):
-            blk = blocks[idx]
+            block = blocks[idx]
             block, prev_dc = decode_block(
-                blk["dc"],
-                blk["ac"],
+                block["dc"],
+                block["ac"],
                 qY,
                 prev_dc,
                 rev_dc,
@@ -546,9 +529,7 @@ def decode_image(filename):
         width, height,
         qY, blocksY,
         qCb, blocksCb,
-        qCr, blocksCr,
-        (cb_h, cb_w),
-        (cr_h, cr_w)
+        qCr, blocksCr
     ) = read_compressed_binary(filename)
 
     rev_dc = build_reverse_dc(huffmann_dc)
@@ -566,8 +547,8 @@ def decode_image(filename):
 
     else:
         Y = decode_blocks(blocksY, qY, height, width, rev_dc, rev_ac_sorted)
-        Cb = decode_blocks(blocksCb, qCb, cb_h, cb_w, rev_dc, rev_ac_sorted)
-        Cr = decode_blocks(blocksCr, qCr, cr_h, cr_w, rev_dc, rev_ac_sorted)
+        Cb = decode_blocks(blocksCb, qCb, height, width, rev_dc, rev_ac_sorted)
+        Cr = decode_blocks(blocksCr, qCr, height, width, rev_dc, rev_ac_sorted)
 
         ycbcr = np.stack([Y, Cb, Cr], axis=2)
         return ycbcr_rgb(ycbcr)
@@ -596,14 +577,14 @@ def test_real_image(path):
         [72, 92, 95, 98, 112, 100, 103, 99]
     ])
 
-    encode_image(img, 90, q, "compressed_data.bin")
+    encode_image(img, 5, q, "compressed_data.bin")
     img_rec = decode_image("compressed_data.bin")
     if img_rec.ndim == 2 and np.max(img_rec) <= 1:
         Image.fromarray(img_rec * 255).convert("1").save("decoded.png")
     else:
         Image.fromarray(img_rec).save("decoded.png")
 
-test_real_image("gray.png")
+test_real_image("lena.png")
 
 
 

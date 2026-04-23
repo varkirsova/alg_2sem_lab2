@@ -3,7 +3,7 @@ from PIL import Image
 
 from raw import save_raw
 
-img = Image.open("test_files/lena.png")
+img = Image.open("lena.png")
 rgb = np.array(img, dtype=np.uint8)
 #
 def rgb_ycbcr(rgb: np.ndarray):
